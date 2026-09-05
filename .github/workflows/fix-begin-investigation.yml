@@ -1,4 +1,4 @@
-name: Fix Begin Investigation button
+name: Fix Casefile navigation
 
 on:
   push:
@@ -15,18 +15,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch button fallback
+      - name: Add no-JS navigation fallback
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          old = '<button class="btn btn-primary" onclick="beginInvestigation()">'
-          new = '<button type="button" class="btn btn-primary" data-goto="screen-dashboard" onclick="try{beginInvestigation()}catch(e){document.querySelectorAll(\'.screen\').forEach(function(s){s.classList.remove(\'active\')});document.getElementById(\'screen-dashboard\').classList.add(\'active\');window.scrollTo(0,0)}">'
-          if old not in s:
-              print('Button already patched or pattern not found; nothing to do.')
-              raise SystemExit(0)
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          marker = '.screen.active{display:block}'
+          css = '.screen.active{display:block}.screen:target{display:block!important}body:has(.screen:target) .screen.active:not(:target){display:none!important}'
+          if css not in s:
+              s = s.replace(marker, css, 1)
+
+          s = s.replace('<button class="btn btn-primary" data-goto="screen-archive">Open the Archive', '<a class="btn btn-primary" data-goto="screen-archive" href="#screen-archive">Open the Archive', 1)
+          s = s.replace('</button><div class="hero-foot hero-item', '</a></div><div class="hero-foot hero-item', 1)
+
+          old = '<button type="button" class="btn btn-primary" data-goto="screen-dashboard" onclick="try{beginInvestigation()}catch(e){document.querySelectorAll(\'.screen\').forEach(function(s){s.classList.remove(\'active\')});document.getElementById(\'screen-dashboard\').classList.add(\'active\');window.scrollTo(0,0)}">Begin Investigation'
+          new = '<a class="btn btn-primary" data-goto="screen-dashboard" href="#screen-dashboard" onclick="try{beginInvestigation()}catch(e){}">Begin Investigation'
+          s = s.replace(old, new, 1)
+          s = s.replace('Begin Investigation <i class="ti ti-arrow-right"></i></button>', 'Begin Investigation <i class="ti ti-arrow-right"></i></a>', 1)
+
+          p.write_text(s, encoding='utf-8')
           PY
 
       - name: Commit patch
@@ -35,5 +44,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'fix: make Begin Investigation navigation resilient'
+          git commit -m 'fix: make case navigation work without javascript'
           git push
