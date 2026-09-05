@@ -12,11 +12,75 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install interrogation handler
-        run: python -c "from pathlib import Path; p=Path('index.html'); s=p.read_text(); tag='<script src=\"interrogation-fix.js\"></script>'; s=s.replace('</body>',tag+'\\n</body>',1) if tag not in s else s; s=s.replace('body:has(.screen:target) .screen.active:not(:target)','body:has(> main > .screen:target) .screen.active:not(:target)'); p.write_text(s)"
+      - name: Install interrogation V2
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          marker = 'CASEFILE-INLINE-INTERROGATION-V2'
+          if marker not in s:
+              js = r'''/* CASEFILE-INLINE-INTERROGATION-V2 */
+          (function(){
+            function install(){
+              var form=document.getElementById('interrogationForm');
+              var input=document.getElementById('questionInput');
+              var area=document.getElementById('convoArea');
+              if(!form||!input||!area||form.dataset.cfV2==='1') return;
+              form.dataset.cfV2='1';
+              var clean=form.cloneNode(true);
+              form.parentNode.replaceChild(clean,form);
+              form=clean; input=document.getElementById('questionInput');
+              var button=document.getElementById('askBtn');
+              var remaining=document.getElementById('qRemaining');
+              var echo=document.getElementById('qRemainingEcho');
+              var tabs=document.querySelectorAll('.interrogation-tab');
+              tabs.forEach(function(old){
+                var t=old.cloneNode(true);
+                old.parentNode.replaceChild(t,old);
+              });
+              tabs=document.querySelectorAll('.interrogation-tab');
+              var data={
+                ethan:{name:'Ethan Cole',r:['I was at the ticket table. Ask the freshmen I checked in.','A few minutes, maybe. Long enough to grab more zip ties from the closet.','I wanted that trophy front and center. That is not a crime.']},
+                maya:{name:'Maya Lin',r:['I was hanging streamers. Alone, yes, but that was decorating for you.','I left for the stage around 21:35. I did not look back.','That lock was a joke. I said so to three different people that week.']},
+                noah:{name:'Noah Reed',r:['I was hauling tables through that corridor all night. Ask anyone.','My boots? I was outside setting up the courtyard entrance too.','I did not go near the display case. Why would I?']}
+              };
+              var who='ethan',count=3,history={ethan:[],maya:[],noah:[]};
+              function esc(x){var d=document.createElement('div');d.textContent=x;return d.innerHTML}
+              function render(){
+                var log=history[who],name=data[who].name;
+                if(!log.length){area.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';return}
+                area.innerHTML=log.map(function(x){return '<div class="msg msg-q"><span class="msg-label">You</span>'+esc(x.q)+'</div><div class="msg msg-a"><span class="msg-label">'+name+'</span>'+esc(x.a)+'</div>'}).join('');
+                area.scrollTop=area.scrollHeight;
+              }
+              function update(){
+                if(remaining) remaining.textContent=count;
+                if(echo) echo.textContent=count;
+                input.disabled=count<=0;
+                button.disabled=count<=0;
+                input.placeholder=count<=0?'No questions remaining.':'Ask a question...';
+              }
+              tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');who=t.dataset.suspect||'ethan';render()})});
+              form.addEventListener('submit',function(e){
+                e.preventDefault();
+                var q=input.value.trim();
+                if(!q||count<=0)return;
+                var log=history[who],r=data[who].r;
+                log.push({q:q,a:r[log.length]||'I have already told you everything I know.'});
+                count--;input.value='';render();update();
+              });
+              update();render();
+            }
+            if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
+            setInterval(install,500);
+          })();'''
+              s = s.replace('</body>', '<script>\n'+js+'\n</script>\n</body>', 1)
+          s = s.replace('body:has(.screen:target) .screen.active:not(:target)','body:has(> main > .screen:target) .screen.active:not(:target)')
+          p.write_text(s)
+          PY
       - name: Commit changes
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
-          git diff --cached --quiet || (git commit -m 'fix: install working interrogation controls' && git push origin HEAD:main)
+          git diff --cached --quiet || (git commit -m 'fix: make interrogation fully interactive' && git push origin HEAD:main)
