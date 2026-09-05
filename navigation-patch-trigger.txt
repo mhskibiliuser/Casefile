@@ -1,0 +1,1 @@
+This file triggers the GitHub Action that applies the no-JavaScript Casefile navigation fallback.
