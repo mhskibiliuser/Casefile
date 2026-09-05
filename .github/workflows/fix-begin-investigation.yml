@@ -1,4 +1,4 @@
-name: Fix Casefile
+name: Install Casefile interrogation
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install single interrogation controller
+      - name: Install Claude interrogation controller
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -21,120 +21,135 @@ jobs:
           p = Path('index.html')
           s = p.read_text()
 
-          # Remove every previous interrogation patch/controller we added.
-          s = re.sub(r'\n<script src="interrogation-fix\.js"></script>', '', s)
-          s = re.sub(r'\n<script>\s*/\* CASEFILE-INLINE-INTERROGATION-V2 \*/.*?</script>', '', s, flags=re.S)
-          s = re.sub(r'\n<script id="CASEFILE-EMERGENCY-INTERACTIONS">.*?</script>', '', s, flags=re.S)
-          s = re.sub(r'\n<script>\s*/\* CASEFILE-INTERROGATION-V3 \*/.*?</script>', '', s, flags=re.S)
+          # Remove every previous controller/patch so there is exactly one source of truth.
+          patterns = [
+            r'\n<script src="interrogation-fix\.js"></script>',
+            r'\n<script id="CASEFILE-EMERGENCY-INTERACTIONS">.*?</script>',
+            r'\n<script id="CASEFILE-FINAL-INTERROGATION">.*?</script>',
+            r'\n<script>\s*/\* CASEFILE-INLINE-INTERROGATION-V2 \*/.*?</script>',
+            r'\n<script>\s*/\* CASEFILE-INTERROGATION-V3 \*/.*?</script>'
+          ]
+          for pat in patterns:
+            s = re.sub(pat, '', s, flags=re.S)
 
-          # Remove the old interrogation logic from the original application script.
-          old = re.compile(r'\nvar SUSPECTS=\{.*?updateRemaining\(\);\s*\n', re.S)
-          s = old.sub('\n', s, count=1)
+          # Remove the original canned-response interrogation block.
+          s = re.sub(r'\nvar SUSPECTS=\{.*?updateRemaining\(\);\s*\n', '\n', s, count=1, flags=re.S)
 
-          # The original navigation selector is intentionally kept narrow so internal
-          # dashboard anchors do not hide the whole dashboard.
-          s = s.replace('body:has(.screen:target) .screen.active:not(:target)',
-                        'body:has(> main > .screen:target) .screen.active:not(:target)')
+          s = s.replace(
+            'body:has(.screen:target) .screen.active:not(:target)',
+            'body:has(> main > .screen:target) .screen.active:not(:target)'
+          )
 
-          controller = r'''<script id="CASEFILE-FINAL-INTERROGATION">
+          controller = r'''<script id="CASEFILE-CLAUDE-INTERROGATION">
           (function(){
             'use strict';
+            var state={who:'ethan',left:3,logs:[]};
+            var people={
+              ethan:{name:'Ethan Cole'},
+              maya:{name:'Maya Lin'},
+              noah:{name:'Noah Reed'}
+            };
+
+            function esc(x){return String(x).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
             function boot(){
               var panel=document.getElementById('dash-interrogation');
-              if(!panel || panel.dataset.finalReady==='1') return;
-              panel.dataset.finalReady='1';
+              if(!panel || panel.dataset.claudeReady==='1') return;
+              panel.dataset.claudeReady='1';
 
-              var people={
-                ethan:{name:'Ethan Cole',answers:[
-                  'I was at the ticket table. Ask the freshmen I checked in.',
-                  'A few minutes, maybe. Long enough to grab more zip ties from the closet.',
-                  'I wanted that trophy front and center. That is not a crime.'
-                ]},
-                maya:{name:'Maya Lin',answers:[
-                  'I was hanging streamers. Alone, yes, but that was decorating for you.',
-                  'I left for the stage around 21:35. I did not look back.',
-                  'That lock was a joke. I said so to three different people that week.'
-                ]},
-                noah:{name:'Noah Reed',answers:[
-                  'I was hauling tables through that corridor all night. Ask anyone.',
-                  'My boots? I was outside setting up the courtyard entrance too.',
-                  'I did not go near the display case. Why would I?'
-                ]}
-              };
-              var state={who:'ethan',left:3,logs:[]};
-
-              panel.innerHTML=''+
-                '<div class="wrap">'+
-                  '<div class="dash-section-head"><i class="ti ti-message-2"></i><h2>Interrogation</h2></div>'+ 
-                  '<div class="interrogation-panel">'+
-                    '<div class="interrogation-top">'+
-                      '<div class="interrogation-suspects" id="finalTabs">'+
-                        '<button class="interrogation-tab active" type="button" data-final-suspect="ethan">Ethan Cole</button>'+ 
-                        '<button class="interrogation-tab" type="button" data-final-suspect="maya">Maya Lin</button>'+ 
-                        '<button class="interrogation-tab" type="button" data-final-suspect="noah">Noah Reed</button>'+ 
-                      '</div>'+ 
-                      '<div class="interrogation-remaining">Questions remaining: <span id="finalRemaining">3</span></div>'+ 
+              panel.innerHTML='<div class="wrap">'+
+                '<div class="dash-section-head"><i class="ti ti-message-2"></i><h2>Interrogation</h2></div>'+ 
+                '<div class="interrogation-panel">'+
+                  '<div class="interrogation-top">'+
+                    '<div class="interrogation-suspects" id="claudeTabs">'+
+                      '<button class="interrogation-tab active" type="button" data-suspect="ethan">Ethan Cole</button>'+ 
+                      '<button class="interrogation-tab" type="button" data-suspect="maya">Maya Lin</button>'+ 
+                      '<button class="interrogation-tab" type="button" data-suspect="noah">Noah Reed</button>'+ 
                     '</div>'+ 
-                    '<div class="interrogation-convo" id="finalConvo"><p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p></div>'+ 
-                    '<form class="interrogation-input" id="finalForm">'+ 
-                      '<input type="text" id="finalInput" placeholder="Ask a question..." autocomplete="off" maxlength="140">'+ 
-                      '<button type="submit" class="btn btn-primary" id="finalAsk">Ask <i class="ti ti-send"></i></button>'+ 
-                    '</form>'+ 
+                    '<div class="interrogation-remaining">Questions remaining: <span id="claudeRemaining">3</span></div>'+ 
                   '</div>'+ 
-                '</div>';
+                  '<div class="interrogation-convo" id="claudeConvo"><p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p></div>'+ 
+                  '<form class="interrogation-input" id="claudeForm">'+ 
+                    '<input type="text" id="claudeInput" placeholder="Ask a question..." autocomplete="off" maxlength="500">'+ 
+                    '<button type="submit" class="btn btn-primary" id="claudeAsk">Ask <i class="ti ti-send"></i></button>'+ 
+                  '</form>'+ 
+                '</div>'+ 
+              '</div>';
 
-              var tabs=panel.querySelectorAll('[data-final-suspect]');
-              var input=panel.querySelector('#finalInput');
-              var form=panel.querySelector('#finalForm');
-              var convo=panel.querySelector('#finalConvo');
-              var remaining=panel.querySelector('#finalRemaining');
-              var ask=panel.querySelector('#finalAsk');
+              var tabs=panel.querySelectorAll('[data-suspect]');
+              var input=panel.querySelector('#claudeInput');
+              var form=panel.querySelector('#claudeForm');
+              var convo=panel.querySelector('#claudeConvo');
+              var remaining=panel.querySelector('#claudeRemaining');
+              var ask=panel.querySelector('#claudeAsk');
 
-              function esc(x){
-                return String(x).replace(/[&<>"']/g,function(c){
-                  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-                });
-              }
               function render(){
-                var rows=state.logs;
-                if(!rows.length){
+                if(!state.logs.length){
                   convo.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';
                   return;
                 }
-                convo.innerHTML=rows.map(function(row){
+                convo.innerHTML=state.logs.map(function(row){
                   return '<div class="msg msg-q"><span class="msg-label">You</span>'+esc(row.q)+'</div>'+ 
-                         '<div class="msg msg-a"><span class="msg-label">'+people[row.who].name+'</span>'+esc(row.a)+'</div>';
+                         '<div class="msg msg-a"><span class="msg-label">'+esc(people[row.who].name)+'</span>'+esc(row.a)+'</div>';
                 }).join('');
                 convo.scrollTop=convo.scrollHeight;
               }
+
               function update(){
                 remaining.textContent=state.left;
                 input.disabled=state.left<=0;
                 ask.disabled=state.left<=0;
                 input.placeholder=state.left<=0?'No questions remaining.':'Ask a question...';
               }
+
               tabs.forEach(function(tab){
                 tab.addEventListener('click',function(){
                   tabs.forEach(function(t){t.classList.remove('active')});
                   tab.classList.add('active');
-                  state.who=tab.getAttribute('data-final-suspect');
+                  state.who=tab.getAttribute('data-suspect');
                   render();
+                  input.focus();
                 });
               });
-              form.addEventListener('submit',function(e){
+
+              form.addEventListener('submit',async function(e){
                 e.preventDefault();
-                if(state.left<=0)return;
+                if(state.left<=0 || ask.disabled)return;
                 var q=input.value.trim();
                 if(!q)return;
-                var person=people[state.who];
-                var used=state.logs.filter(function(x){return x.who===state.who}).length;
-                state.logs.push({who:state.who,q:q,a:person.answers[used]||'I have already told you everything I know.'});
-                state.left--;
-                input.value='';
-                render();
-                update();
-                input.focus();
+
+                var prior=state.logs.map(function(row){
+                  return [{role:'user',content:row.q},{role:'assistant',content:row.a}];
+                }).flat();
+
+                ask.disabled=true;
+                input.disabled=true;
+                ask.innerHTML='Thinking <i class="ti ti-loader-2"></i>';
+
+                try{
+                  var response=await fetch('/api/interrogate',{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({suspect:state.who,question:q,history:prior})
+                  });
+                  var data=await response.json().catch(function(){return {}});
+                  if(!response.ok)throw new Error(data.error||'Claude could not answer.');
+                  state.logs.push({who:state.who,q:q,a:data.answer});
+                  state.left--;
+                  input.value='';
+                  render();
+                  update();
+                }catch(err){
+                  convo.insertAdjacentHTML('beforeend','<div class="msg msg-a"><span class="msg-label">SYSTEM</span>'+esc(err.message||'Interrogation failed.')+'</div>');
+                  convo.scrollTop=convo.scrollHeight;
+                  ask.disabled=state.left<=0;
+                  input.disabled=state.left<=0;
+                }finally{
+                  ask.innerHTML='Ask <i class="ti ti-send"></i>';
+                  if(state.left>0){ask.disabled=false;input.disabled=false;input.focus()}
+                }
               });
+
               update();
               render();
             }
@@ -144,8 +159,8 @@ jobs:
               var curtain=document.querySelector('.curtain');
               if(curtain){curtain.style.display='none';curtain.style.pointerEvents='none';}
               document.querySelectorAll('[data-goto]').forEach(function(btn){
-                if(btn.dataset.finalNav==='1')return;
-                btn.dataset.finalNav='1';
+                if(btn.dataset.claudeNav==='1')return;
+                btn.dataset.claudeNav='1';
                 btn.addEventListener('click',function(e){
                   if(btn.disabled)return;
                   var id=btn.getAttribute('data-goto');
@@ -161,13 +176,13 @@ jobs:
               });
             }
 
-            function start(){forceNavigation();boot();}
+            function start(){forceNavigation();boot()}
             if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
           })();
           </script>
           '''
 
-          s = s.replace('</body></html>', controller + '\n</body></html>')
+          s=s.replace('</body></html>',controller+'\n</body></html>')
           p.write_text(s)
           PY
       - name: Commit changes
@@ -175,4 +190,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
-          git diff --cached --quiet || (git commit -m 'fix: use single interrogation controller' && git push origin HEAD:main)
+          git diff --cached --quiet || (git commit -m 'feat: connect interrogation to Claude' && git push origin HEAD:main)
