@@ -1,12 +1,14 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { GoogleGenAI } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ai = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
 
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(__dirname));
@@ -39,8 +41,8 @@ Rules:
 
 app.post('/api/interrogate', async (req, res) => {
   try {
-    if (!ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: 'Claude is not configured yet. Add ANTHROPIC_API_KEY to the server environment.' });
+    if (!GEMINI_API_KEY || !ai) {
+      return res.status(503).json({ error: 'Gemini is not configured yet. Add GEMINI_API_KEY to the server environment.' });
     }
 
     const { suspect, question, history = [] } = req.body || {};
@@ -58,52 +60,36 @@ app.post('/api/interrogate', async (req, res) => {
     }
 
     const cleanHistory = history.slice(0, 2).map(item => ({
-      role: item.role === 'assistant' ? 'assistant' : 'user',
+      role: item.role === 'assistant' ? 'suspect' : 'detective',
       content: String(item.content || '').slice(0, 1000)
     }));
 
-    const messages = [
-      ...cleanHistory,
-      { role: 'user', content: question.trim().slice(0, 500) }
-    ];
-
-    const system = `${CASE_CONTEXT}\n\nYou are ${allowed[suspect]}. Respond only as ${allowed[suspect]}.`;
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-8',
-        max_tokens: 350,
-        system,
-        messages
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      console.error('Anthropic API error:', data);
-      return res.status(502).json({ error: 'Claude could not answer right now.' });
-    }
-
-    const answer = Array.isArray(data.content)
-      ? data.content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim()
+    const conversation = cleanHistory.length
+      ? `\nPrevious interrogation:\n${cleanHistory.map(item => `${item.role.toUpperCase()}: ${item.content}`).join('\n')}`
       : '';
 
-    if (!answer) return res.status(502).json({ error: 'Claude returned an empty answer.' });
+    const input = `${conversation}\n\nDETECTIVE: ${question.trim().slice(0, 500)}\n\nRespond only with ${allowed[suspect]}'s answer. Do not add labels such as "DETECTIVE:" or "${allowed[suspect]}:".`;
+    const system_instruction = `${CASE_CONTEXT}\n\nYou are ${allowed[suspect]}. Respond only as ${allowed[suspect]}.`;
+
+    const interaction = await ai.interactions.create({
+      model: 'gemini-3.8-flash',
+      system_instruction,
+      input,
+      generation_config: { thinking_level: 'low' }
+    });
+
+    const answer = String(interaction.output_text || '').trim();
+
+    if (!answer) return res.status(502).json({ error: 'Gemini returned an empty answer.' });
     res.json({ answer });
   } catch (error) {
-    console.error('Interrogation error:', error);
-    res.status(500).json({ error: 'Interrogation service failed.' });
+    console.error('Gemini interrogation error:', error);
+    res.status(502).json({ error: 'Gemini could not answer right now.' });
   }
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, claudeConfigured: Boolean(ANTHROPIC_API_KEY) });
+  res.json({ ok: true, geminiConfigured: Boolean(GEMINI_API_KEY) });
 });
 
 app.listen(PORT, () => {
