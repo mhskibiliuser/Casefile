@@ -15,27 +15,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Add no-JS navigation fallback
+      - name: Patch navigation robustly
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
+
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
 
-          marker = '.screen.active{display:block}'
-          css = '.screen.active{display:block}.screen:target{display:block!important}body:has(.screen:target) .screen.active:not(:target){display:none!important}'
+          # CSS fallback: navigation still works if page JS is unavailable.
+          css = '.screen:target{display:block!important}body:has(.screen:target) .screen.active:not(:target){display:none!important}'
           if css not in s:
-              s = s.replace(marker, css, 1)
+              s = s.replace('.screen.active{display:block}', '.screen.active{display:block}' + css, 1)
 
-          s = s.replace('<button class="btn btn-primary" data-goto="screen-archive">Open the Archive', '<a class="btn btn-primary" data-goto="screen-archive" href="#screen-archive">Open the Archive', 1)
-          s = s.replace('</button><div class="hero-foot hero-item', '</a></div><div class="hero-foot hero-item', 1)
+          # Landing-page Archive button -> real hash link.
+          archive_re = re.compile(r'<button(?=[^>]*class=["\'][^"\']*btn-primary[^"\']*["\'])(?=[^>]*data-goto=["\']screen-archive["\'])[^>]*>(.*?)</button>', re.S)
+          s, archive_n = archive_re.subn(r'<a class="btn btn-primary" data-goto="screen-archive" href="#screen-archive">\1</a>', s, count=1)
 
-          old = '<button type="button" class="btn btn-primary" data-goto="screen-dashboard" onclick="try{beginInvestigation()}catch(e){document.querySelectorAll(\'.screen\').forEach(function(s){s.classList.remove(\'active\')});document.getElementById(\'screen-dashboard\').classList.add(\'active\');window.scrollTo(0,0)}">Begin Investigation'
-          new = '<a class="btn btn-primary" data-goto="screen-dashboard" href="#screen-dashboard" onclick="try{beginInvestigation()}catch(e){}">Begin Investigation'
-          s = s.replace(old, new, 1)
-          s = s.replace('Begin Investigation <i class="ti ti-arrow-right"></i></button>', 'Begin Investigation <i class="ti ti-arrow-right"></i></a>', 1)
+          # Begin Investigation -> dashboard hash link, independent of JS.
+          begin_re = re.compile(r'<button(?=[^>]*onclick=["\']beginInvestigation\(\)["\'])[^>]*>(.*?)</button>', re.S)
+          s, begin_n = begin_re.subn(r'<a class="btn btn-primary" data-goto="screen-dashboard" href="#screen-dashboard">\1</a>', s, count=1)
+
+          # If the original button has already been partially patched, repair it too.
+          if begin_n == 0:
+              s = re.sub(r'<button([^>]*data-goto=["\']screen-dashboard["\'][^>]*)>(\s*Begin Investigation.*?</button>)', r'<a class="btn btn-primary" data-goto="screen-dashboard" href="#screen-dashboard">\2</a>', s, count=1, flags=re.S)
+              s = s.replace('</button></a>', '</a>')
 
           p.write_text(s, encoding='utf-8')
+          print(f'archive replacements: {archive_n}, begin replacements: {begin_n}')
+          if 'href="#screen-dashboard"' not in s:
+              raise SystemExit('ERROR: dashboard navigation link was not created')
+          if 'href="#screen-archive"' not in s:
+              raise SystemExit('ERROR: archive navigation link was not created')
           PY
 
       - name: Commit patch
@@ -44,5 +56,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'fix: make case navigation work without javascript'
-          git push
+          git commit -m 'fix: make investigation navigation reliable'
+          git fetch origin main
+          git rebase origin/main || (git rebase --abort; git reset --hard origin/main; git apply --whitespace=nowarn < <(git diff HEAD^ HEAD) || true)
+          git push origin HEAD:main
