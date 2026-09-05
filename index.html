@@ -60,163 +60,136 @@ document.querySelectorAll('.spotlight').forEach(function(card){card.addEventList
 document.querySelectorAll('dialog').forEach(function(d){d.addEventListener('click',function(e){if(e.target===d)d.close()})});
 try{var io=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting)entry.target.classList.add('in')})},{threshold:.2});document.querySelectorAll('.vtimeline .item').forEach(function(el){io.observe(el)})}catch(e){}
 try{var notesArea=document.getElementById('notes');var saved=localStorage.getItem('casefile-notes');if(saved)notesArea.value=saved;notesArea.addEventListener('input',function(){localStorage.setItem('casefile-notes',notesArea.value)})}catch(e){}
-var SUSPECTS={ethan:{name:'Ethan Cole',responses:['"I told you — I was at the ticket table. Ask the freshmen I checked in."','"A few minutes, maybe. Long enough to grab more zip ties from the closet."','"I wanted that trophy front and center. That\'s not a crime."']},maya:{name:'Maya Lin',responses:['"I was hanging streamers. Alone, yes, but that\'s decorating for you."','"I left for the stage around 21:35. I didn\'t look back."','"That lock was a joke. I said so to three different people that week."']},noah:{name:'Noah Reed',responses:['"I was hauling tables through that corridor all night. Ask anyone."','"My boots? I was outside setting up the courtyard entrance too."','"I didn\'t go near the display case. Why would I?"']}};
-var FALLBACK_RESPONSE='"I\'ve already told you everything I know."';var currentSuspect='ethan';var questionsRemaining=3;var history={ethan:[],maya:[],noah:[]};
-function renderConvo(){var area=document.getElementById('convoArea');var log=history[currentSuspect];if(!log.length){area.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';return}var name=SUSPECTS[currentSuspect].name;area.innerHTML=log.map(function(turn){return '<div class="msg msg-q"><span class="msg-label">You</span>'+escapeHtml(turn.q)+'</div><div class="msg msg-a"><span class="msg-label">'+name+'</span>'+escapeHtml(turn.a)+'</div>'}).join('');area.scrollTop=area.scrollHeight}
-function escapeHtml(str){return String(str).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-function updateRemaining(){document.getElementById('qRemaining').textContent=questionsRemaining;var echo=document.getElementById('qRemainingEcho');if(echo)echo.textContent=questionsRemaining;var input=document.getElementById('questionInput');var btn=document.getElementById('askBtn');if(questionsRemaining<=0){input.disabled=true;btn.disabled=true;input.placeholder='No questions remaining.'}}
-document.querySelectorAll('.interrogation-tab').forEach(function(tab){tab.addEventListener('click',function(){document.querySelectorAll('.interrogation-tab').forEach(function(t){t.classList.remove('active')});tab.classList.add('active');currentSuspect=tab.dataset.suspect;renderConvo()})});
-var interrogationForm=document.getElementById('interrogationForm');if(interrogationForm){interrogationForm.addEventListener('submit',function(e){e.preventDefault();if(questionsRemaining<=0)return;var input=document.getElementById('questionInput');var text=input.value.trim();if(!text)return;var log=history[currentSuspect];var lines=SUSPECTS[currentSuspect].responses;var response=log.length<lines.length?lines[log.length]:FALLBACK_RESPONSE;log.push({q:text,a:response});questionsRemaining--;input.value='';renderConvo();updateRemaining()})}updateRemaining();
 </script>
 <script id="__bld_reveal_failsafe">(function(){function r(){try{document.querySelectorAll('[data-aos],.reveal,.fade-in,.fade-up,.fade-left,.fade-right,.animate-on-scroll,[class*=reveal],[class*=fade-]').forEach(function(e){e.classList.add('aos-animate','is-visible','active','in-view','show','visible');e.style.opacity='1';e.style.transform='none';e.style.visibility='visible'})}catch(_){} }function c(){if(!(window.AOS&&document.querySelector('[data-aos].aos-init')))r()}setTimeout(c,2200);window.addEventListener('load',function(){setTimeout(c,2500)})})();</script>
-<script src="interrogation-fix.js"></script>
-<script>
-/* CASEFILE-INLINE-INTERROGATION-V2 */
-(function(){
-  function install(){
-    var form=document.getElementById('interrogationForm');
-    var input=document.getElementById('questionInput');
-    var area=document.getElementById('convoArea');
-    if(!form||!input||!area||form.dataset.cfV2==='1') return;
-    form.dataset.cfV2='1';
-    var clean=form.cloneNode(true);
-    form.parentNode.replaceChild(clean,form);
-    form=clean; input=document.getElementById('questionInput');
-    var button=document.getElementById('askBtn');
-    var remaining=document.getElementById('qRemaining');
-    var echo=document.getElementById('qRemainingEcho');
-    var tabs=document.querySelectorAll('.interrogation-tab');
-    tabs.forEach(function(old){
-      var t=old.cloneNode(true);
-      old.parentNode.replaceChild(t,old);
-    });
-    tabs=document.querySelectorAll('.interrogation-tab');
-    var data={
-      ethan:{name:'Ethan Cole',r:['I was at the ticket table. Ask the freshmen I checked in.','A few minutes, maybe. Long enough to grab more zip ties from the closet.','I wanted that trophy front and center. That is not a crime.']},
-      maya:{name:'Maya Lin',r:['I was hanging streamers. Alone, yes, but that was decorating for you.','I left for the stage around 21:35. I did not look back.','That lock was a joke. I said so to three different people that week.']},
-      noah:{name:'Noah Reed',r:['I was hauling tables through that corridor all night. Ask anyone.','My boots? I was outside setting up the courtyard entrance too.','I did not go near the display case. Why would I?']}
-    };
-    var who='ethan',count=3,history={ethan:[],maya:[],noah:[]};
-    function esc(x){var d=document.createElement('div');d.textContent=x;return d.innerHTML}
-    function render(){
-      var log=history[who],name=data[who].name;
-      if(!log.length){area.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';return}
-      area.innerHTML=log.map(function(x){return '<div class="msg msg-q"><span class="msg-label">You</span>'+esc(x.q)+'</div><div class="msg msg-a"><span class="msg-label">'+name+'</span>'+esc(x.a)+'</div>'}).join('');
-      area.scrollTop=area.scrollHeight;
-    }
-    function update(){
-      if(remaining) remaining.textContent=count;
-      if(echo) echo.textContent=count;
-      input.disabled=count<=0;
-      button.disabled=count<=0;
-      input.placeholder=count<=0?'No questions remaining.':'Ask a question...';
-    }
-    tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');who=t.dataset.suspect||'ethan';render()})});
-    form.addEventListener('submit',function(e){
-      e.preventDefault();
-      var q=input.value.trim();
-      if(!q||count<=0)return;
-      var log=history[who],r=data[who].r;
-      log.push({q:q,a:r[log.length]||'I have already told you everything I know.'});
-      count--;input.value='';render();update();
-    });
-    update();render();
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',install); else install();
-  setInterval(install,500);
-})();
-</script>
-<script id="CASEFILE-EMERGENCY-INTERACTIONS">
-(function(){
-  document.documentElement.classList.add('js','is-loaded');
-  function boot(){
-    var f=document.getElementById('interrogationForm');
-    var i=document.getElementById('questionInput');
-    var a=document.getElementById('askBtn');
-    var c=document.getElementById('convoArea');
-    var q=document.getElementById('qRemaining');
-    var qe=document.getElementById('qRemainingEcho');
-    if(!f||!i||!a||!c)return;
-    if(f.dataset.finalPatch==='1')return;
-    f.dataset.finalPatch='1';
-    var tabs=document.querySelectorAll('.interrogation-tab');
-    var state={who:'ethan',left:3,logs:{ethan:[],maya:[],noah:[]}};
-    var people={ethan:['Ethan Cole',['I was at the ticket table. Ask the freshmen I checked in.','A few minutes, maybe. Long enough to grab more zip ties from the closet.','I wanted that trophy front and center. That is not a crime.']],maya:['Maya Lin',['I was hanging streamers. Alone, yes, but that was decorating for you.','I left for the stage around 21:35. I did not look back.','That lock was a joke. I said so to three different people that week.']],noah:['Noah Reed',['I was hauling tables through that corridor all night. Ask anyone.','My boots? I was outside setting up the courtyard entrance too.','I did not go near the display case. Why would I?'] ]};
-    function esc(x){var d=document.createElement('div');d.textContent=x;return d.innerHTML}
-    function render(){var log=state.logs[state.who];if(!log.length){c.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';return}var n=people[state.who][0];c.innerHTML=log.map(function(x){return '<div class="msg msg-q"><span class="msg-label">You</span>'+esc(x.q)+'</div><div class="msg msg-a"><span class="msg-label">'+n+'</span>'+esc(x.a)+'</div>'}).join('');c.scrollTop=c.scrollHeight}
-    function update(){q.textContent=state.left;if(qe)qe.textContent=state.left;i.disabled=state.left<1;a.disabled=state.left<1;i.placeholder=state.left?'Ask a question...':'No questions remaining.'}
-    function replaceTabs(){tabs=document.querySelectorAll('.interrogation-tab');tabs.forEach(function(t){var n=t.cloneNode(true);t.parentNode.replaceChild(n,t)});tabs=document.querySelectorAll('.interrogation-tab');tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');state.who=t.dataset.suspect||'ethan';render()})})}
-    var nf=f.cloneNode(true);f.parentNode.replaceChild(nf,f);f=nf;i=document.getElementById('questionInput');a=document.getElementById('askBtn');
-    replaceTabs();
-    f.addEventListener('submit',function(e){e.preventDefault();e.stopImmediatePropagation();if(state.left<1)return;var text=i.value.trim();if(!text)return;var log=state.logs[state.who],lines=people[state.who][1];log.push({q:text,a:lines[log.length]||'I have already told you everything I know.'});state.left--;i.value='';render();update()});
-    update();render();
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
-  setTimeout(boot,1000);setTimeout(boot,2500);
-})();
-</script>
-<script>
-/* CASEFILE-INTERROGATION-V3 */
+<script id="CASEFILE-FINAL-INTERROGATION">
 (function(){
   'use strict';
-  var DATA={
-    ethan:{name:'Ethan Cole',answers:[
-      'I was at the ticket table. Ask the freshmen I checked in.',
-      'A few minutes, maybe. Long enough to grab more zip ties from the closet.',
-      'I wanted that trophy front and center. That is not a crime.'
-    ]},
-    maya:{name:'Maya Lin',answers:[
-      'I was hanging streamers. Alone, yes, but that was decorating for you.',
-      'I left for the stage around 21:35. I did not look back.',
-      'That lock was a joke. I said so to three different people that week.'
-    ]},
-    noah:{name:'Noah Reed',answers:[
-      'I was hauling tables through that corridor all night. Ask anyone.',
-      'My boots? I was outside setting up the courtyard entrance too.',
-      'I did not go near the display case. Why would I?'
-    ]}
-  };
-  var state={who:'ethan',left:3,history:[]};
-  function esc(v){var d=document.createElement('div');d.textContent=v;return d.innerHTML}
-  function panel(){return document.getElementById('dash-interrogation')}
-  function render(){
-    var p=panel(); if(!p)return;
-    var a=DATA[state.who],rows=state.history;
-    var html='<div class="wrap"><div class="dash-section-head"><i class="ti ti-message-2"></i><h2>Interrogation</h2></div>'+
-      '<div id="cf3" style="background:var(--bg-1);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem;max-width:760px;margin:0 auto">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">'+
-      '<div id="cf3tabs" style="display:flex;gap:.5rem;flex-wrap:wrap">'+
-      Object.keys(DATA).map(function(k){return '<button type="button" data-cf3-tab="'+k+'" style="padding:.55rem 1rem;border-radius:999px;border:1px solid '+(k===state.who?'var(--line-strong)':'var(--line)')+';background:'+(k===state.who?'var(--amber-soft)':'var(--bg-2)')+';color:'+(k===state.who?'var(--amber)':'var(--ink-dim)')+'">'+DATA[k].name+'</button>'}).join('')+
-      '</div><strong style="color:var(--amber)">Questions remaining: <span id="cf3count">'+state.left+'</span></strong></div>'+
-      '<div id="cf3log" style="background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:1.2rem;min-height:140px;max-height:340px;overflow:auto">'+
-      (rows.length?rows.map(function(x){return '<div style="margin-bottom:.8rem"><div style="color:var(--amber);font-size:.7rem;text-transform:uppercase">You</div><div>'+esc(x.q)+'</div><div style="color:var(--steel);font-size:.7rem;text-transform:uppercase;margin-top:.6rem">'+a.name+'</div><div style="color:var(--ink-dim)">'+esc(x.a)+'</div></div>'}).join(''):'<div style="text-align:center;color:var(--ink-faint);padding:2rem 0">No questions asked yet. Choose a suspect and ask your first question.</div>')+
-      '</div><form id="cf3form" style="display:flex;gap:.7rem;margin-top:1rem"><input id="cf3input" type="text" maxlength="140" autocomplete="off" placeholder="Ask a question..." style="flex:1;background:var(--bg-2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem;font:inherit"><button id="cf3ask" type="submit" class="btn btn-primary">Ask <i class="ti ti-send"></i></button></form></div></div>';
-    p.innerHTML=html;
+  function boot(){
+    var panel=document.getElementById('dash-interrogation');
+    if(!panel || panel.dataset.finalReady==='1') return;
+    panel.dataset.finalReady='1';
+
+    var people={
+      ethan:{name:'Ethan Cole',answers:[
+        'I was at the ticket table. Ask the freshmen I checked in.',
+        'A few minutes, maybe. Long enough to grab more zip ties from the closet.',
+        'I wanted that trophy front and center. That is not a crime.'
+      ]},
+      maya:{name:'Maya Lin',answers:[
+        'I was hanging streamers. Alone, yes, but that was decorating for you.',
+        'I left for the stage around 21:35. I did not look back.',
+        'That lock was a joke. I said so to three different people that week.'
+      ]},
+      noah:{name:'Noah Reed',answers:[
+        'I was hauling tables through that corridor all night. Ask anyone.',
+        'My boots? I was outside setting up the courtyard entrance too.',
+        'I did not go near the display case. Why would I?'
+      ]}
+    };
+    var state={who:'ethan',left:3,logs:[]};
+
+    panel.innerHTML=''+
+      '<div class="wrap">'+
+        '<div class="dash-section-head"><i class="ti ti-message-2"></i><h2>Interrogation</h2></div>'+ 
+        '<div class="interrogation-panel">'+
+          '<div class="interrogation-top">'+
+            '<div class="interrogation-suspects" id="finalTabs">'+
+              '<button class="interrogation-tab active" type="button" data-final-suspect="ethan">Ethan Cole</button>'+ 
+              '<button class="interrogation-tab" type="button" data-final-suspect="maya">Maya Lin</button>'+ 
+              '<button class="interrogation-tab" type="button" data-final-suspect="noah">Noah Reed</button>'+ 
+            '</div>'+ 
+            '<div class="interrogation-remaining">Questions remaining: <span id="finalRemaining">3</span></div>'+ 
+          '</div>'+ 
+          '<div class="interrogation-convo" id="finalConvo"><p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p></div>'+ 
+          '<form class="interrogation-input" id="finalForm">'+ 
+            '<input type="text" id="finalInput" placeholder="Ask a question..." autocomplete="off" maxlength="140">'+ 
+            '<button type="submit" class="btn btn-primary" id="finalAsk">Ask <i class="ti ti-send"></i></button>'+ 
+          '</form>'+ 
+        '</div>'+ 
+      '</div>';
+
+    var tabs=panel.querySelectorAll('[data-final-suspect]');
+    var input=panel.querySelector('#finalInput');
+    var form=panel.querySelector('#finalForm');
+    var convo=panel.querySelector('#finalConvo');
+    var remaining=panel.querySelector('#finalRemaining');
+    var ask=panel.querySelector('#finalAsk');
+
+    function esc(x){
+      return String(x).replace(/[&<>"']/g,function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+    function render(){
+      var rows=state.logs;
+      if(!rows.length){
+        convo.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';
+        return;
+      }
+      convo.innerHTML=rows.map(function(row){
+        return '<div class="msg msg-q"><span class="msg-label">You</span>'+esc(row.q)+'</div>'+ 
+               '<div class="msg msg-a"><span class="msg-label">'+people[row.who].name+'</span>'+esc(row.a)+'</div>';
+      }).join('');
+      convo.scrollTop=convo.scrollHeight;
+    }
+    function update(){
+      remaining.textContent=state.left;
+      input.disabled=state.left<=0;
+      ask.disabled=state.left<=0;
+      input.placeholder=state.left<=0?'No questions remaining.':'Ask a question...';
+    }
+    tabs.forEach(function(tab){
+      tab.addEventListener('click',function(){
+        tabs.forEach(function(t){t.classList.remove('active')});
+        tab.classList.add('active');
+        state.who=tab.getAttribute('data-final-suspect');
+        render();
+      });
+    });
+    form.addEventListener('submit',function(e){
+      e.preventDefault();
+      if(state.left<=0)return;
+      var q=input.value.trim();
+      if(!q)return;
+      var person=people[state.who];
+      var used=state.logs.filter(function(x){return x.who===state.who}).length;
+      state.logs.push({who:state.who,q:q,a:person.answers[used]||'I have already told you everything I know.'});
+      state.left--;
+      input.value='';
+      render();
+      update();
+      input.focus();
+    });
+    update();
+    render();
   }
-  function install(){
-    var p=panel(); if(!p)return;
-    if(!p.dataset.cf3){p.dataset.cf3='1';render();}
-    if(!document.documentElement.classList.contains('is-loaded'))document.documentElement.classList.add('is-loaded');
-    var curtain=document.querySelector('.curtain');if(curtain){curtain.style.transform='translateY(-100%)';curtain.style.pointerEvents='none';}
+
+  function forceNavigation(){
+    document.documentElement.classList.add('js','is-loaded');
+    var curtain=document.querySelector('.curtain');
+    if(curtain){curtain.style.display='none';curtain.style.pointerEvents='none';}
+    document.querySelectorAll('[data-goto]').forEach(function(btn){
+      if(btn.dataset.finalNav==='1')return;
+      btn.dataset.finalNav='1';
+      btn.addEventListener('click',function(e){
+        if(btn.disabled)return;
+        var id=btn.getAttribute('data-goto');
+        var target=document.getElementById(id);
+        if(!target)return;
+        e.preventDefault();
+        document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+        target.classList.add('active');
+        window.scrollTo(0,0);
+        document.querySelectorAll('.topnav-links button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-goto')===id)});
+        boot();
+      });
+    });
   }
-  document.addEventListener('click',function(e){
-    var tab=e.target.closest&&e.target.closest('[data-cf3-tab]');
-    if(tab){state.who=tab.getAttribute('data-cf3-tab');render();return;}
-    var nav=e.target.closest&&e.target.closest('[data-goto]');
-    if(nav && !nav.disabled){var id=nav.getAttribute('data-goto'),el=document.getElementById(id);if(el){e.preventDefault();document.querySelectorAll('.screen').forEach(function(x){x.classList.remove('active')});el.classList.add('active');window.scrollTo(0,0);}}
-  });
-  document.addEventListener('submit',function(e){
-    if(!e.target||e.target.id!=='cf3form')return;
-    e.preventDefault();
-    if(state.left<=0)return;
-    var input=document.getElementById('cf3input'),q=input&&input.value.trim();if(!q)return;
-    var a=DATA[state.who],n=state.history.length;
-    state.history.push({q:q,a:a.answers[n]||'I have already told you everything I know.'});
-    state.left--;render();
-    var ni=document.getElementById('cf3input');if(ni){ni.focus();}
-  });
-  function start(){install();setInterval(install,700)}
+
+  function start(){forceNavigation();boot();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 </script>
+
 </body></html>
