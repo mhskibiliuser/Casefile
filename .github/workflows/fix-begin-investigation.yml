@@ -24,10 +24,19 @@ jobs:
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
 
-          # CSS fallback: navigation still works if page JS is unavailable.
-          css = '.screen:target{display:block!important}body:has(.screen:target) .screen.active:not(:target){display:none!important}'
-          if css not in s:
-              s = s.replace('.screen.active{display:block}', '.screen.active{display:block}' + css, 1)
+          # Hash navigation fallback. Only a top-level .screen target should
+          # switch screens; inner dashboard anchors such as #dash-interrogation
+          # must NOT hide the dashboard.
+          s = s.replace(
+              'body:has(.screen:target) .screen.active:not(:target)',
+              'body:has(> main > .screen:target) .screen.active:not(:target)'
+          )
+
+          # Repair malformed closing tag left on the landing Archive link.
+          s = s.replace(
+              '<a class="btn btn-primary" data-goto="screen-archive" href="#screen-archive">Open the Archive <i class="ti ti-arrow-right"></i></button>',
+              '<a class="btn btn-primary" data-goto="screen-archive" href="#screen-archive">Open the Archive <i class="ti ti-arrow-right"></i></a>'
+          )
 
           # Landing-page Archive button -> real hash link.
           archive_re = re.compile(r'<button(?=[^>]*class=["\'][^"\']*btn-primary[^"\']*["\'])(?=[^>]*data-goto=["\']screen-archive["\'])[^>]*>(.*?)</button>', re.S)
@@ -37,10 +46,8 @@ jobs:
           begin_re = re.compile(r'<button(?=[^>]*onclick=["\']beginInvestigation\(\)["\'])[^>]*>(.*?)</button>', re.S)
           s, begin_n = begin_re.subn(r'<a class="btn btn-primary" data-goto="screen-dashboard" href="#screen-dashboard">\1</a>', s, count=1)
 
-          # If the original button has already been partially patched, repair it too.
-          if begin_n == 0:
-              s = re.sub(r'<button([^>]*data-goto=["\']screen-dashboard["\'][^>]*)>(\s*Begin Investigation.*?</button>)', r'<a class="btn btn-primary" data-goto="screen-dashboard" href="#screen-dashboard">\2</a>', s, count=1, flags=re.S)
-              s = s.replace('</button></a>', '</a>')
+          # Repair any remaining malformed anchor/button nesting.
+          s = s.replace('</button></a>', '</a>')
 
           p.write_text(s, encoding='utf-8')
           print(f'archive replacements: {archive_n}, begin replacements: {begin_n}')
@@ -48,6 +55,8 @@ jobs:
               raise SystemExit('ERROR: dashboard navigation link was not created')
           if 'href="#screen-archive"' not in s:
               raise SystemExit('ERROR: archive navigation link was not created')
+          if 'body:has(> main > .screen:target)' not in s:
+              raise SystemExit('ERROR: nested dashboard anchor selector was not repaired')
           PY
 
       - name: Commit patch
@@ -56,7 +65,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m 'fix: make investigation navigation reliable'
+          git commit -m 'fix: keep dashboard visible on internal navigation'
           git fetch origin main
-          git rebase origin/main || (git rebase --abort; git reset --hard origin/main; git apply --whitespace=nowarn < <(git diff HEAD^ HEAD) || true)
+          git rebase origin/main || (git rebase --abort; git reset --hard origin/main)
           git push origin HEAD:main
