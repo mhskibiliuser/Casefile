@@ -12,52 +12,78 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install final interaction patch
+      - name: Install standalone interrogation
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text()
-
-          # The reveal curtain must never be able to sit above the app and block clicks.
-          emergency_css = '<style id="CASEFILE-EMERGENCY-UI">.curtain{transform:translateY(-100%)!important;pointer-events:none!important;display:none!important}</style>'
-          if 'CASEFILE-EMERGENCY-UI' not in s:
-              s = s.replace('</head>', emergency_css + '\n</head>', 1)
-
-          # Force the page into its usable state even if another script fails before load.
-          emergency_js = r'''<script id="CASEFILE-EMERGENCY-INTERACTIONS">
+          marker = 'CASEFILE-INTERROGATION-V3'
+          if marker not in s:
+              js = r'''/* CASEFILE-INTERROGATION-V3 */
           (function(){
-            document.documentElement.classList.add('js','is-loaded');
-            function boot(){
-              var f=document.getElementById('interrogationForm');
-              var i=document.getElementById('questionInput');
-              var a=document.getElementById('askBtn');
-              var c=document.getElementById('convoArea');
-              var q=document.getElementById('qRemaining');
-              var qe=document.getElementById('qRemainingEcho');
-              if(!f||!i||!a||!c)return;
-              if(f.dataset.finalPatch==='1')return;
-              f.dataset.finalPatch='1';
-              var tabs=document.querySelectorAll('.interrogation-tab');
-              var state={who:'ethan',left:3,logs:{ethan:[],maya:[],noah:[]}};
-              var people={ethan:['Ethan Cole',['I was at the ticket table. Ask the freshmen I checked in.','A few minutes, maybe. Long enough to grab more zip ties from the closet.','I wanted that trophy front and center. That is not a crime.']],maya:['Maya Lin',['I was hanging streamers. Alone, yes, but that was decorating for you.','I left for the stage around 21:35. I did not look back.','That lock was a joke. I said so to three different people that week.']],noah:['Noah Reed',['I was hauling tables through that corridor all night. Ask anyone.','My boots? I was outside setting up the courtyard entrance too.','I did not go near the display case. Why would I?'] ]};
-              function esc(x){var d=document.createElement('div');d.textContent=x;return d.innerHTML}
-              function render(){var log=state.logs[state.who];if(!log.length){c.innerHTML='<p class="convo-empty">No questions asked yet. Choose a suspect and ask your first question below.</p>';return}var n=people[state.who][0];c.innerHTML=log.map(function(x){return '<div class="msg msg-q"><span class="msg-label">You</span>'+esc(x.q)+'</div><div class="msg msg-a"><span class="msg-label">'+n+'</span>'+esc(x.a)+'</div>'}).join('');c.scrollTop=c.scrollHeight}
-              function update(){q.textContent=state.left;if(qe)qe.textContent=state.left;i.disabled=state.left<1;a.disabled=state.left<1;i.placeholder=state.left?'Ask a question...':'No questions remaining.'}
-              function replaceTabs(){tabs=document.querySelectorAll('.interrogation-tab');tabs.forEach(function(t){var n=t.cloneNode(true);t.parentNode.replaceChild(n,t)});tabs=document.querySelectorAll('.interrogation-tab');tabs.forEach(function(t){t.addEventListener('click',function(){tabs.forEach(function(x){x.classList.remove('active')});t.classList.add('active');state.who=t.dataset.suspect||'ethan';render()})})}
-              var nf=f.cloneNode(true);f.parentNode.replaceChild(nf,f);f=nf;i=document.getElementById('questionInput');a=document.getElementById('askBtn');
-              replaceTabs();
-              f.addEventListener('submit',function(e){e.preventDefault();e.stopImmediatePropagation();if(state.left<1)return;var text=i.value.trim();if(!text)return;var log=state.logs[state.who],lines=people[state.who][1];log.push({q:text,a:lines[log.length]||'I have already told you everything I know.'});state.left--;i.value='';render();update()});
-              update();render();
+            'use strict';
+            var DATA={
+              ethan:{name:'Ethan Cole',answers:[
+                'I was at the ticket table. Ask the freshmen I checked in.',
+                'A few minutes, maybe. Long enough to grab more zip ties from the closet.',
+                'I wanted that trophy front and center. That is not a crime.'
+              ]},
+              maya:{name:'Maya Lin',answers:[
+                'I was hanging streamers. Alone, yes, but that was decorating for you.',
+                'I left for the stage around 21:35. I did not look back.',
+                'That lock was a joke. I said so to three different people that week.'
+              ]},
+              noah:{name:'Noah Reed',answers:[
+                'I was hauling tables through that corridor all night. Ask anyone.',
+                'My boots? I was outside setting up the courtyard entrance too.',
+                'I did not go near the display case. Why would I?'
+              ]}
+            };
+            var state={who:'ethan',left:3,history:[]};
+            function esc(v){var d=document.createElement('div');d.textContent=v;return d.innerHTML}
+            function panel(){return document.getElementById('dash-interrogation')}
+            function render(){
+              var p=panel(); if(!p)return;
+              var a=DATA[state.who],rows=state.history;
+              var html='<div class="wrap"><div class="dash-section-head"><i class="ti ti-message-2"></i><h2>Interrogation</h2></div>'+
+                '<div id="cf3" style="background:var(--bg-1);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem;max-width:760px;margin:0 auto">'+
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">'+
+                '<div id="cf3tabs" style="display:flex;gap:.5rem;flex-wrap:wrap">'+
+                Object.keys(DATA).map(function(k){return '<button type="button" data-cf3-tab="'+k+'" style="padding:.55rem 1rem;border-radius:999px;border:1px solid '+(k===state.who?'var(--line-strong)':'var(--line)')+';background:'+(k===state.who?'var(--amber-soft)':'var(--bg-2)')+';color:'+(k===state.who?'var(--amber)':'var(--ink-dim)')+'">'+DATA[k].name+'</button>'}).join('')+
+                '</div><strong style="color:var(--amber)">Questions remaining: <span id="cf3count">'+state.left+'</span></strong></div>'+
+                '<div id="cf3log" style="background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:1.2rem;min-height:140px;max-height:340px;overflow:auto">'+
+                (rows.length?rows.map(function(x){return '<div style="margin-bottom:.8rem"><div style="color:var(--amber);font-size:.7rem;text-transform:uppercase">You</div><div>'+esc(x.q)+'</div><div style="color:var(--steel);font-size:.7rem;text-transform:uppercase;margin-top:.6rem">'+a.name+'</div><div style="color:var(--ink-dim)">'+esc(x.a)+'</div></div>'}).join(''):'<div style="text-align:center;color:var(--ink-faint);padding:2rem 0">No questions asked yet. Choose a suspect and ask your first question.</div>')+
+                '</div><form id="cf3form" style="display:flex;gap:.7rem;margin-top:1rem"><input id="cf3input" type="text" maxlength="140" autocomplete="off" placeholder="Ask a question..." style="flex:1;background:var(--bg-2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem;font:inherit"><button id="cf3ask" type="submit" class="btn btn-primary">Ask <i class="ti ti-send"></i></button></form></div></div>';
+              p.innerHTML=html;
             }
-            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
-            setTimeout(boot,1000);setTimeout(boot,2500);
-          })();
-          </script>'''
-          if 'CASEFILE-EMERGENCY-INTERACTIONS' not in s:
-              s = s.replace('</body>', emergency_js + '\n</body>', 1)
-
-          s = s.replace('body:has(.screen:target) .screen.active:not(:target)','body:has(> main > .screen:target) .screen.active:not(:target)')
+            function install(){
+              var p=panel(); if(!p)return;
+              if(!p.dataset.cf3){p.dataset.cf3='1';render();}
+              if(!document.documentElement.classList.contains('is-loaded'))document.documentElement.classList.add('is-loaded');
+              var curtain=document.querySelector('.curtain');if(curtain){curtain.style.transform='translateY(-100%)';curtain.style.pointerEvents='none';}
+            }
+            document.addEventListener('click',function(e){
+              var tab=e.target.closest&&e.target.closest('[data-cf3-tab]');
+              if(tab){state.who=tab.getAttribute('data-cf3-tab');render();return;}
+              var nav=e.target.closest&&e.target.closest('[data-goto]');
+              if(nav && !nav.disabled){var id=nav.getAttribute('data-goto'),el=document.getElementById(id);if(el){e.preventDefault();document.querySelectorAll('.screen').forEach(function(x){x.classList.remove('active')});el.classList.add('active');window.scrollTo(0,0);}}
+            });
+            document.addEventListener('submit',function(e){
+              if(!e.target||e.target.id!=='cf3form')return;
+              e.preventDefault();
+              if(state.left<=0)return;
+              var input=document.getElementById('cf3input'),q=input&&input.value.trim();if(!q)return;
+              var a=DATA[state.who],n=state.history.length;
+              state.history.push({q:q,a:a.answers[n]||'I have already told you everything I know.'});
+              state.left--;render();
+              var ni=document.getElementById('cf3input');if(ni){ni.focus();}
+            });
+            function start(){install();setInterval(install,700)}
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+          })();'''
+              s=s.replace('</body>','<script>\n'+js+'\n</script>\n</body>',1)
+          s=s.replace('body:has(.screen:target) .screen.active:not(:target)','body:has(> main > .screen:target) .screen.active:not(:target)')
           p.write_text(s)
           PY
       - name: Commit changes
@@ -65,4 +91,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
-          git diff --cached --quiet || (git commit -m 'fix: remove blocking curtain and harden interactions' && git push origin HEAD:main)
+          git diff --cached --quiet || (git commit -m 'fix: standalone interrogation controller' && git push origin HEAD:main)
