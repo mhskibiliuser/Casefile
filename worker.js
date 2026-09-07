@@ -33,7 +33,10 @@ const ALLOWED = {
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*'
+    }
   });
 }
 
@@ -130,6 +133,11 @@ export default {
 
     if (url.pathname === '/api/interrogate' && request.method === 'POST') {
       return interrogate(request, env);
+    }
+
+    // Serve the existing Casefile frontend through Cloudflare's asset binding.
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request);
     }
 
     return new Response('CASEFILE Worker is running.', { status: 200 });
