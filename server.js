@@ -1,14 +1,13 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GoogleGenAI } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const ai = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openrouter/free';
 
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(__dirname));
@@ -41,8 +40,8 @@ Rules:
 
 app.post('/api/interrogate', async (req, res) => {
   try {
-    if (!GEMINI_API_KEY || !ai) {
-      return res.status(503).json({ error: 'Gemini is not configured yet. Add GEMINI_API_KEY to the server environment.' });
+    if (!OPENROUTER_API_KEY) {
+      return res.status(503).json({ error: 'OpenRouter is not configured yet. Add OPENROUTER_API_KEY to the server environment.' });
     }
 
     const { suspect, question, history = [] } = req.body || {};
@@ -55,11 +54,11 @@ app.post('/api/interrogate', async (req, res) => {
     if (!allowed[suspect] || typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ error: 'Invalid suspect or question.' });
     }
-    if (!Array.isArray(history) || history.length >= 3) {
+    if (!Array.isArray(history) || history.length >= 6) {
       return res.status(400).json({ error: 'The case allows exactly three questions total.' });
     }
 
-    const cleanHistory = history.slice(0, 2).map(item => ({
+    const cleanHistory = history.slice(0, 6).map(item => ({
       role: item.role === 'assistant' ? 'suspect' : 'detective',
       content: String(item.content || '').slice(0, 1000)
     }));
@@ -68,28 +67,44 @@ app.post('/api/interrogate', async (req, res) => {
       ? `\nPrevious interrogation:\n${cleanHistory.map(item => `${item.role.toUpperCase()}: ${item.content}`).join('\n')}`
       : '';
 
-    const input = `${conversation}\n\nDETECTIVE: ${question.trim().slice(0, 500)}\n\nRespond only with ${allowed[suspect]}'s answer. Do not add labels such as "DETECTIVE:" or "${allowed[suspect]}:".`;
-    const system_instruction = `${CASE_CONTEXT}\n\nYou are ${allowed[suspect]}. Respond only as ${allowed[suspect]}.`;
+    const prompt = `${CASE_CONTEXT}\n\nYou are ${allowed[suspect]}. Respond only as ${allowed[suspect]}.\n${conversation}\n\nDETECTIVE: ${question.trim().slice(0, 500)}\n\nRespond only with ${allowed[suspect]}'s answer. Do not add labels such as "DETECTIVE:" or "${allowed[suspect]}:".`;
 
-    const interaction = await ai.interactions.create({
-      model: 'gemini-3.8-flash',
-      system_instruction,
-      input,
-      generation_config: { thinking_level: 'low' }
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/mhskibiliuser/Casefile',
+        'X-Title': 'CASEFILE — Case 001'
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: question.trim().slice(0, 500) }
+        ],
+        temperature: 0.7,
+        max_tokens: 250
+      })
     });
 
-    const answer = String(interaction.output_text || '').trim();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('OpenRouter error:', data);
+      return res.status(502).json({ error: data?.error?.message || 'OpenRouter could not answer right now.' });
+    }
 
-    if (!answer) return res.status(502).json({ error: 'Gemini returned an empty answer.' });
+    const answer = String(data?.choices?.[0]?.message?.content || '').trim();
+    if (!answer) return res.status(502).json({ error: 'OpenRouter returned an empty answer.' });
     res.json({ answer });
   } catch (error) {
-    console.error('Gemini interrogation error:', error);
-    res.status(502).json({ error: 'Gemini could not answer right now.' });
+    console.error('OpenRouter interrogation error:', error);
+    res.status(502).json({ error: 'OpenRouter could not answer right now.' });
   }
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, geminiConfigured: Boolean(GEMINI_API_KEY) });
+  res.json({ ok: true, openrouterConfigured: Boolean(OPENROUTER_API_KEY), model: OPENROUTER_MODEL });
 });
 
 app.listen(PORT, () => {
