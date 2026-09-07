@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8080;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openrouter/free';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'minimax/minimax-m3:free';
 
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(__dirname));
@@ -45,11 +45,7 @@ app.post('/api/interrogate', async (req, res) => {
     }
 
     const { suspect, question, history = [] } = req.body || {};
-    const allowed = {
-      ethan: 'Ethan Cole',
-      maya: 'Maya Lin',
-      noah: 'Noah Reed'
-    };
+    const allowed = { ethan: 'Ethan Cole', maya: 'Maya Lin', noah: 'Noah Reed' };
 
     if (!allowed[suspect] || typeof question !== 'string' || !question.trim()) {
       return res.status(400).json({ error: 'Invalid suspect or question.' });
